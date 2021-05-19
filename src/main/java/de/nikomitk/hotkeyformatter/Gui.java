@@ -1,5 +1,10 @@
 package de.nikomitk.hotkeyformatter;
 
+import org.jnativehook.GlobalScreen;
+import org.jnativehook.NativeHookException;
+import org.jnativehook.keyboard.NativeKeyEvent;
+import org.jnativehook.keyboard.NativeKeyListener;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
@@ -9,13 +14,31 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class Gui extends JFrame {
-    private static JPanel panel;
-    private static JButton sarcastic, uppercase, lowercase;
+public class Gui extends JFrame implements NativeKeyListener{
 
-    public Gui() throws IOException {
+    private static String pathname = "data";
+    private static File dir = new File(pathname);
+    private static File hotkeyFile = new File(pathname + File.separator + "hotkeyFile.txt");
+    private static JPanel everyThing, up, down, downRight;
+    private static JScrollPane hotkeyField;
+    private static JButton sarcastic, record;
+    private static JLabel hotkeyLabel;
+    private static String hotkey;
+    private List<Integer> hotkeyButtons;
+
+    public Gui(List<Integer> hotkeyButtons) throws IOException {
+        hotkey = "";
+        this.hotkeyButtons = hotkeyButtons;
+        for(int i = 0; i<hotkeyButtons.size(); i++){
+            String plus = " + ";
+            if(i == 0) plus = "";
+            hotkey += plus + NativeKeyEvent.getKeyText(hotkeyButtons.get(i));
+        }
         this.addWindowListener(new WindowAdapter() {
             public void windowClosing(WindowEvent windowEvent) {
                 setExtendedState(JFrame.ICONIFIED);
@@ -25,62 +48,57 @@ public class Gui extends JFrame {
         setIconImage(ImageIO.read(new FileInputStream("pics/logo.png")));
         setVisible(true);
         setDefaultCloseOperation(JFrame.ICONIFIED);
-        panel = new JPanel();
-        panel.setVisible(true);
-        panel.setLayout(new GridLayout(2, 2));
-        add(panel);
-
+        setResizable(false);
+        everyThing = new JPanel();
+        everyThing.setVisible(true);
+        everyThing.setLayout(new GridLayout(2, 1));
+        up = new JPanel();
+        up.setLayout(new GridLayout(1,2));
+        down = new JPanel();
+        down.setLayout(new GridLayout());
 
         sarcastic = new JButton("SaRcAsTiC");
-        sarcastic.addActionListener((ActionEvent e) -> {
-            String data = null;
-            try {
-                data = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-            } catch (Exception ex) {
-                ex.printStackTrace();
+        sarcastic.addActionListener((ActionEvent e) -> Handler.toSarcastic());
+        record = new JButton("Record");
+        record.setFocusable(false);
+        record.addActionListener((ActionEvent e) ->{
+            if(record.getText().equals("Record")) {
+                this.hotkeyButtons = new ArrayList<>();
+                GlobalScreen.addNativeKeyListener(this);
+                hotkey = "";
+                record.setText("Stop");
+                hotkeyLabel.setBackground(Color.white);
             }
-            Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
-            c.setContents(new StringSelection(Handler.toSarcastic(data)), new StringSelection(Handler.toSarcastic(data)));
-        });
-
-
-        uppercase = new JButton("UPPERCASE");
-        uppercase.addActionListener((ActionEvent e) -> {
-            String data = null;
-            try {
-                data = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-            } catch (Exception ex) {
-                ex.printStackTrace();
+        else {
+                try {
+                    GlobalScreen.removeNativeKeyListener(this);
+                } catch (Exception exception) {
+                    exception.printStackTrace();
+                }
+                hotkeyLabel.setBackground(Color.lightGray);
+                record.setText("Record");
+                storeHotkey(this.hotkeyButtons);
+                Main.storeNewHotkey(this.hotkeyButtons);
             }
-            Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
-            c.setContents(new StringSelection(Handler.toUppercase(data)), new StringSelection(Handler.toUppercase(data)));
         });
+        hotkeyLabel = new JLabel(hotkey);
+        hotkeyLabel.setBackground(Color.lightGray);
+        hotkeyField = new JScrollPane(hotkeyLabel);
 
-
-        lowercase = new JButton("lowercase");
-        lowercase.addActionListener((ActionEvent e) -> {
-            String data = null;
-            try {
-                data = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-            Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
-            c.setContents(new StringSelection(Handler.toLowercase(data)), new StringSelection(Handler.toLowercase(data)));
-        });
-        panel.add(sarcastic);
-        panel.add(uppercase);
-        panel.add(lowercase);
+        up.add(sarcastic);
+        up.add(record);
+        down.add(hotkeyLabel);
+        everyThing.add(up);
+        everyThing.add(down);
+        add(everyThing);
         pack();
-
+        setSize(240,125);
 
         // now the part with minimizing to tray instead of closing
         if (SystemTray.isSupported()) {
             SystemTray tray = SystemTray.getSystemTray();
             Image image = ImageIO.read(new FileInputStream("pics/logo.png"));
-            ActionListener exitListener = e -> {
-                System.exit(0);
-            };
+            ActionListener exitListener = e -> System.exit(0);
             PopupMenu popup = new PopupMenu();
             MenuItem defaultItem = new MenuItem("Open");
             defaultItem.addActionListener(e -> {
@@ -91,11 +109,9 @@ public class Gui extends JFrame {
             defaultItem = new MenuItem("Exit");
             defaultItem.addActionListener(exitListener);
             popup.add(defaultItem);
-            TrayIcon trayIcon = new TrayIcon(image, "SystemTray Demo", popup);
+            TrayIcon trayIcon = new TrayIcon(image, "HotkeyFormatter", popup);
             trayIcon.setImageAutoSize(true);
-            trayIcon.addActionListener(e -> {
-                setVisible(true);
-            });
+            trayIcon.addActionListener(e -> setVisible(true));
             addWindowStateListener(e -> {
                 if (e.getNewState() == ICONIFIED) {
                     try {
@@ -133,4 +149,39 @@ public class Gui extends JFrame {
         }
     }
 
+    public void storeHotkey(List<Integer> hotkeyButtons) {
+
+        // for safety if the file somehow went missing
+        try {
+            hotkeyFile.createNewFile();
+            new FileWriter(pathname + File.separator + "hotkeyFile.txt").close();
+            for (int i : hotkeyButtons) {
+                Printer.printToFile("" + i, pathname + File.separator + "hotkeyFile.txt", true);
+            }
+        }
+        catch (IOException ioex){
+            ioex.printStackTrace();
+        }
+    }
+
+    @Override
+    public void nativeKeyTyped(NativeKeyEvent nativeKeyEvent) {
+
+    }
+
+    @Override
+    public void nativeKeyPressed(NativeKeyEvent nativeKeyEvent) {
+        String plus = " + ";
+        if(hotkey.length() == 0) plus = "";
+        if(nativeKeyEvent.getKeyCode() != 42)
+        hotkey += plus + NativeKeyEvent.getKeyText(nativeKeyEvent.getKeyCode());
+        else hotkey += " + " + "Shift";
+        hotkeyLabel.setText(hotkey);
+        hotkeyButtons.add(nativeKeyEvent.getKeyCode());
+    }
+
+    @Override
+    public void nativeKeyReleased(NativeKeyEvent nativeKeyEvent) {
+
+    }
 }
