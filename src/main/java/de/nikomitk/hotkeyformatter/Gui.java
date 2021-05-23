@@ -1,17 +1,18 @@
 package de.nikomitk.hotkeyformatter;
 
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import org.jnativehook.GlobalScreen;
-import org.jnativehook.NativeHookException;
 import org.jnativehook.keyboard.NativeKeyEvent;
 import org.jnativehook.keyboard.NativeKeyListener;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.StringSelection;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -19,7 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Gui extends JFrame implements NativeKeyListener{
+public class Gui extends JFrame implements NativeKeyListener {
 
     private static String pathname = "data";
     private static File dir = new File(pathname);
@@ -32,11 +33,21 @@ public class Gui extends JFrame implements NativeKeyListener{
     private List<Integer> hotkeyButtons;
 
     public Gui(List<Integer> hotkeyButtons) throws IOException {
+        FlatLightLaf.install();
+        try {
+            UIManager.setLookAndFeel(new FlatDarculaLaf());
+        } catch (UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
+        SwingUtilities.updateComponentTreeUI(this);
+        setUndecorated(true);
+        getRootPane().setWindowDecorationStyle(JRootPane.FRAME);
+        SwingUtilities.updateComponentTreeUI(this);
         hotkey = "";
         this.hotkeyButtons = hotkeyButtons;
-        for(int i = 0; i<hotkeyButtons.size(); i++){
+        for (int i = 0; i < hotkeyButtons.size(); i++) {
             String plus = " + ";
-            if(i == 0) plus = "";
+            if (i == 0) plus = "";
             hotkey += plus + NativeKeyEvent.getKeyText(hotkeyButtons.get(i));
         }
         this.addWindowListener(new WindowAdapter() {
@@ -53,23 +64,23 @@ public class Gui extends JFrame implements NativeKeyListener{
         everyThing.setVisible(true);
         everyThing.setLayout(new GridLayout(2, 1));
         up = new JPanel();
-        up.setLayout(new GridLayout(1,2));
+        up.setLayout(new GridLayout(1, 2));
         down = new JPanel();
         down.setLayout(new GridLayout());
 
         sarcastic = new JButton("SaRcAsTiC");
+        sarcastic.setFocusable(false);
         sarcastic.addActionListener((ActionEvent e) -> Handler.toSarcastic());
         record = new JButton("Record");
         record.setFocusable(false);
-        record.addActionListener((ActionEvent e) ->{
-            if(record.getText().equals("Record")) {
+        record.addActionListener((ActionEvent e) -> {
+            if (record.getText().equals("Record")) {
                 this.hotkeyButtons = new ArrayList<>();
                 GlobalScreen.addNativeKeyListener(this);
                 hotkey = "";
                 record.setText("Stop");
                 hotkeyLabel.setBackground(Color.white);
-            }
-        else {
+            } else {
                 try {
                     GlobalScreen.removeNativeKeyListener(this);
                 } catch (Exception exception) {
@@ -92,7 +103,7 @@ public class Gui extends JFrame implements NativeKeyListener{
         everyThing.add(down);
         add(everyThing);
         pack();
-        setSize(240,125);
+        setSize(240, 125);
 
         // now the part with minimizing to tray instead of closing
         if (SystemTray.isSupported()) {
@@ -158,8 +169,7 @@ public class Gui extends JFrame implements NativeKeyListener{
             for (int i : hotkeyButtons) {
                 Printer.printToFile("" + i, pathname + File.separator + "hotkeyFile.txt", true);
             }
-        }
-        catch (IOException ioex){
+        } catch (IOException ioex) {
             ioex.printStackTrace();
         }
     }
@@ -172,9 +182,9 @@ public class Gui extends JFrame implements NativeKeyListener{
     @Override
     public void nativeKeyPressed(NativeKeyEvent nativeKeyEvent) {
         String plus = " + ";
-        if(hotkey.length() == 0) plus = "";
-        if(nativeKeyEvent.getKeyCode() != 42)
-        hotkey += plus + NativeKeyEvent.getKeyText(nativeKeyEvent.getKeyCode());
+        if (hotkey.length() == 0) plus = "";
+        if (nativeKeyEvent.getKeyCode() != 42)
+            hotkey += plus + NativeKeyEvent.getKeyText(nativeKeyEvent.getKeyCode());
         else hotkey += " + " + "Shift";
         hotkeyLabel.setText(hotkey);
         hotkeyButtons.add(nativeKeyEvent.getKeyCode());
