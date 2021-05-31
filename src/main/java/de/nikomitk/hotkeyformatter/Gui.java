@@ -5,7 +5,6 @@ import com.formdev.flatlaf.FlatLightLaf;
 import org.jnativehook.GlobalScreen;
 import org.jnativehook.keyboard.NativeKeyEvent;
 import org.jnativehook.keyboard.NativeKeyListener;
-
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
@@ -13,26 +12,64 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.Arrays;
 
 public class Gui extends JFrame implements NativeKeyListener {
 
-    private static String pathname = "data";
-    private static File dir = new File(pathname);
-    private static File hotkeyFile = new File(pathname + File.separator + "hotkeyFile.txt");
-    private static JPanel everyThing, up, down, downRight;
-    private static JScrollPane hotkeyField;
-    private static JButton sarcastic, record;
-    private static JLabel hotkeyLabel;
-    private static String hotkey;
-    private List<Integer> hotkeyButtons;
+    private int [] tempHotkeys;
+    private final JButton recordButton;
+    private JLabel hotkeyLabel;
 
-    public Gui(List<Integer> hotkeyButtons) throws IOException {
+    public Gui() {
+
+        // Visuals
+        setLAF();
+        setFrameOptions();
+
+        // JPanels
+        JPanel everyThing = new JPanel(new GridLayout(2, 1));
+        JPanel up = new JPanel(new GridLayout(1, 2));
+        JPanel down = new JPanel(new GridLayout());
+
+        JButton sarcastic = new JButton("SaRcAsTiC");
+        sarcastic.setFocusable(false);
+        sarcastic.addActionListener((ActionEvent e) -> Handler.toSarcastic());
+
+        recordButton = new JButton("Record");
+        recordButton.setFocusable(false);
+        recordButton.addActionListener((ActionEvent e) -> {
+            if (recordButton.getText().equals("Record")) {
+                tempHotkeys = new int[0];
+                recordButton.setText("Stop");
+                hotkeyLabel.setBackground(Color.white);
+                GlobalScreen.addNativeKeyListener(this);
+
+            } else {
+                GlobalScreen.removeNativeKeyListener(this);
+                hotkeyLabel.setBackground(Color.lightGray);
+                recordButton.setText("Record");
+                Main.setHotkeyButtons(tempHotkeys);
+            }
+        });
+
+        hotkeyLabel = new JLabel();
+        hotkeyLabel.setBackground(Color.lightGray);
+
+        up.add(sarcastic);
+        up.add(recordButton);
+        down.add(hotkeyLabel);
+        everyThing.add(up);
+        everyThing.add(down);
+        add(everyThing);
+        pack();
+        setSize(240, 125);
+        displayHotkey(Main.getHotkeyButtons());
+
+        addToSystemTray();
+    }
+
+    private void setLAF(){
         FlatLightLaf.install();
         try {
             UIManager.setLookAndFeel(new FlatDarculaLaf());
@@ -43,155 +80,99 @@ public class Gui extends JFrame implements NativeKeyListener {
         setUndecorated(true);
         getRootPane().setWindowDecorationStyle(JRootPane.FRAME);
         SwingUtilities.updateComponentTreeUI(this);
-        hotkey = "";
-        this.hotkeyButtons = hotkeyButtons;
-        for (int i = 0; i < hotkeyButtons.size(); i++) {
-            String plus = " + ";
-            if (i == 0) plus = "";
-            hotkey += plus + NativeKeyEvent.getKeyText(hotkeyButtons.get(i));
+    }
+
+    private void displayHotkey(int [] hotkeyButtons){
+        StringBuilder bld = new StringBuilder();
+        bld.append(NativeKeyEvent.getKeyText(hotkeyButtons[0]));
+        for(int i = 1; i<hotkeyButtons.length; i++){
+            bld.append(" + ").append(NativeKeyEvent.getKeyText(hotkeyButtons[i]));
         }
+        hotkeyLabel.setText(bld.toString());
+    }
+
+    private void setFrameOptions(){
         this.addWindowListener(new WindowAdapter() {
+            @Override
             public void windowClosing(WindowEvent windowEvent) {
-                setExtendedState(JFrame.ICONIFIED);
+                setExtendedState(Frame.ICONIFIED);
             }
         });
         setTitle("HotKeyFormatter");
-        setIconImage(ImageIO.read(new FileInputStream("pics/logo.png")));
+        try {
+            setIconImage(ImageIO.read(new FileInputStream("pics/logo.png")));
+        } catch (Exception e){
+            e.printStackTrace();
+        }
         setVisible(true);
-        setDefaultCloseOperation(JFrame.ICONIFIED);
+        setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
         setResizable(false);
-        everyThing = new JPanel();
-        everyThing.setVisible(true);
-        everyThing.setLayout(new GridLayout(2, 1));
-        up = new JPanel();
-        up.setLayout(new GridLayout(1, 2));
-        down = new JPanel();
-        down.setLayout(new GridLayout());
+    }
 
-        sarcastic = new JButton("SaRcAsTiC");
-        sarcastic.setFocusable(false);
-        sarcastic.addActionListener((ActionEvent e) -> Handler.toSarcastic());
-        record = new JButton("Record");
-        record.setFocusable(false);
-        record.addActionListener((ActionEvent e) -> {
-            if (record.getText().equals("Record")) {
-                this.hotkeyButtons = new ArrayList<>();
-                GlobalScreen.addNativeKeyListener(this);
-                hotkey = "";
-                record.setText("Stop");
-                hotkeyLabel.setBackground(Color.white);
-            } else {
-                try {
-                    GlobalScreen.removeNativeKeyListener(this);
-                } catch (Exception exception) {
-                    exception.printStackTrace();
-                }
-                hotkeyLabel.setBackground(Color.lightGray);
-                record.setText("Record");
-                storeHotkey(this.hotkeyButtons);
-                Main.storeNewHotkey(this.hotkeyButtons);
+    private void addToSystemTray() {
+        try{
+            if (SystemTray.isSupported()) {
+
+                Image image = ImageIO.read(new FileInputStream("pics/logo.png"));
+                ActionListener exitListener = e -> System.exit(0);
+                PopupMenu popup = new PopupMenu();
+                MenuItem defaultItem = new MenuItem("Open");
+                defaultItem.addActionListener(e -> {
+                    setVisible(true);
+                    setExtendedState(Frame.NORMAL);
+                });
+                popup.add(defaultItem);
+                defaultItem = new MenuItem("Exit");
+                defaultItem.addActionListener(exitListener);
+                popup.add(defaultItem);
+                TrayIcon trayIcon = new TrayIcon(image, "HotkeyFormatter", popup);
+                trayIcon.setImageAutoSize(true);
+                trayIcon.addActionListener(e -> setVisible(true));
+                addWindowStateListener(e -> {
+                    if (e.getNewState() == WindowEvent.WINDOW_CLOSING || e.getNewState() == 7 || e.getNewState() == ICONIFIED) {
+                        addTrayIcon(trayIcon);
+                    }
+                    if (e.getNewState() == MAXIMIZED_BOTH || e.getNewState() == NORMAL) {
+                        removeTrayIcon(trayIcon);
+                    }
+                });
             }
-        });
-        hotkeyLabel = new JLabel(hotkey);
-        hotkeyLabel.setBackground(Color.lightGray);
-        hotkeyField = new JScrollPane(hotkeyLabel);
-
-        up.add(sarcastic);
-        up.add(record);
-        down.add(hotkeyLabel);
-        everyThing.add(up);
-        everyThing.add(down);
-        add(everyThing);
-        pack();
-        setSize(240, 125);
-
-        // now the part with minimizing to tray instead of closing
-        if (SystemTray.isSupported()) {
-            SystemTray tray = SystemTray.getSystemTray();
-            Image image = ImageIO.read(new FileInputStream("pics/logo.png"));
-            ActionListener exitListener = e -> System.exit(0);
-            PopupMenu popup = new PopupMenu();
-            MenuItem defaultItem = new MenuItem("Open");
-            defaultItem.addActionListener(e -> {
-                setVisible(true);
-                setExtendedState(JFrame.NORMAL);
-            });
-            popup.add(defaultItem);
-            defaultItem = new MenuItem("Exit");
-            defaultItem.addActionListener(exitListener);
-            popup.add(defaultItem);
-            TrayIcon trayIcon = new TrayIcon(image, "HotkeyFormatter", popup);
-            trayIcon.setImageAutoSize(true);
-            trayIcon.addActionListener(e -> setVisible(true));
-            addWindowStateListener(e -> {
-                if (e.getNewState() == ICONIFIED) {
-                    try {
-                        tray.add(trayIcon);
-                        setVisible(false);
-                    } catch (AWTException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-                if (e.getNewState() == WindowEvent.WINDOW_CLOSING) {
-                    try {
-                        tray.add(trayIcon);
-                        setVisible(false);
-                    } catch (AWTException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-                if (e.getNewState() == 7) {
-                    try {
-                        tray.add(trayIcon);
-                        setVisible(false);
-                    } catch (AWTException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-                if (e.getNewState() == MAXIMIZED_BOTH) {
-                    tray.remove(trayIcon);
-                    setVisible(true);
-                }
-                if (e.getNewState() == NORMAL) {
-                    tray.remove(trayIcon);
-                    setVisible(true);
-                }
-            });
+        } catch (Exception e){
+            e.printStackTrace();
         }
     }
 
-    public void storeHotkey(List<Integer> hotkeyButtons) {
-
-        // for safety if the file somehow went missing
+    private void addTrayIcon(TrayIcon trayIcon){
+        SystemTray tray = SystemTray.getSystemTray();
         try {
-            hotkeyFile.createNewFile();
-            new FileWriter(pathname + File.separator + "hotkeyFile.txt").close();
-            for (int i : hotkeyButtons) {
-                Printer.printToFile("" + i, pathname + File.separator + "hotkeyFile.txt", true);
-            }
-        } catch (IOException ioex) {
-            ioex.printStackTrace();
+            tray.add(trayIcon);
+            setVisible(false);
+        } catch (AWTException ex) {
+            ex.printStackTrace();
         }
+    }
+
+    private void removeTrayIcon(TrayIcon trayIcon){
+        SystemTray tray = SystemTray.getSystemTray();
+        tray.remove(trayIcon);
+        setVisible(true);
     }
 
     @Override
     public void nativeKeyTyped(NativeKeyEvent nativeKeyEvent) {
-
+        // This method had to be implemented but it doesn't work as it should
     }
 
     @Override
     public void nativeKeyPressed(NativeKeyEvent nativeKeyEvent) {
-        String plus = " + ";
-        if (hotkey.length() == 0) plus = "";
-        if (nativeKeyEvent.getKeyCode() != 42)
-            hotkey += plus + NativeKeyEvent.getKeyText(nativeKeyEvent.getKeyCode());
-        else hotkey += " + " + "Shift";
-        hotkeyLabel.setText(hotkey);
-        hotkeyButtons.add(nativeKeyEvent.getKeyCode());
+        int [] tempHotkeybuttons = Arrays.copyOf(tempHotkeys, tempHotkeys.length+1);
+        tempHotkeybuttons[tempHotkeybuttons.length-1] = nativeKeyEvent.getKeyCode();
+        tempHotkeys = tempHotkeybuttons;
+        displayHotkey(tempHotkeys);
     }
 
     @Override
     public void nativeKeyReleased(NativeKeyEvent nativeKeyEvent) {
-
+        // This method had to be implemented but I have no need for it
     }
 }

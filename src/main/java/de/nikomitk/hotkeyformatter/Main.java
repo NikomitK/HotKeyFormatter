@@ -1,69 +1,54 @@
 package de.nikomitk.hotkeyformatter;
 
+import lombok.Getter;
 import org.jnativehook.GlobalScreen;
 import org.jnativehook.NativeHookException;
 import org.jnativehook.keyboard.NativeKeyEvent;
 import org.jnativehook.keyboard.NativeKeyListener;
+import yapion.parser.YAPIONParser;
+import yapion.serializing.YAPIONDeserializer;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+
 public class Main {
 
-    public static List<Integer> hotkeyButtons;
-    private static final String pathname = "data";
-    private static final File dir = new File(pathname);
-    private static final File hotkeyFile = new File(pathname + File.separator + "hotkeyFile.txt");
+    @Getter
+    private static int [] hotkeyButtons;
+    private static final File storageFile = new File("storage.yapion");
+    private static Storage storage;
     private static boolean[] holdKeys;
 
     public static void main(String[] args) throws IOException, NativeHookException {
+        createStorage();
+        hotkeyButtons = storage.getHotkeyButtons();
+        holdKeys = new boolean[hotkeyButtons.length];
 
-        //gespeicherten hotkey einlesen
-        hotkeyButtons = new ArrayList<>();
-        dir.mkdir();
-        if (!hotkeyFile.createNewFile()) {
-            try {
-                Scanner sc = new Scanner(hotkeyFile);
-                while (true) {
-                    try {
-                        hotkeyButtons.add(Integer.parseInt(sc.nextLine()));
-                    } catch (Exception ex) {
-                        break;
-                    }
-                }
-                if (hotkeyButtons.size() == 0) throw new Exception("Keine heißen Schlüssel gefunden");
-            } catch (Exception e) {
-                e.printStackTrace();
-                hotkeyButtons.add(29);
-                hotkeyButtons.add(16);
-            }
-        }
+        new Gui();
 
-        holdKeys = new boolean[hotkeyButtons.size()];
-
-        Gui gui = new Gui(hotkeyButtons);
         // the stuff for the hotkey listener
-        Logger logger = Logger.getLogger(GlobalScreen.class.getPackage().getName());
-        logger.setLevel(Level.OFF);
+        Logger.getLogger(GlobalScreen.class.getPackage().getName()).setLevel(Level.OFF);
         GlobalScreen.registerNativeHook();
         GlobalScreen.addNativeKeyListener(new NativeKeyListener() {
             @Override
             public void nativeKeyTyped(NativeKeyEvent nativeKeyEvent) {
-
+                // This method had to be implemented but it doesn't work as it should
             }
 
             @Override
             public void nativeKeyPressed(NativeKeyEvent nativeKeyEvent) {
-                for (int i = 0; i < hotkeyButtons.size(); i++) {
-                    if (nativeKeyEvent.getKeyCode() == hotkeyButtons.get(i)) {
+
+                // Add the newly pressed button to the list of pressed buttons from the hotkey array
+                for (int i = 0; i < hotkeyButtons.length; i++) {
+                    if (nativeKeyEvent.getKeyCode() == hotkeyButtons[i]) {
                         holdKeys[i] = true;
                     }
                 }
+
+                // Check if every button is pressed
                 boolean allTrue = true;
                 for (boolean b : holdKeys) {
                     if (!b) {
@@ -76,8 +61,10 @@ public class Main {
 
             @Override
             public void nativeKeyReleased(NativeKeyEvent nativeKeyEvent) {
-                for (int i = 0; i < hotkeyButtons.size() - 1; i++) {
-                    if (nativeKeyEvent.getKeyCode() == hotkeyButtons.get(i)) {
+
+                // Remove the released button from the list of pressed buttons
+                for (int i = 0; i < hotkeyButtons.length; i++) {
+                    if (nativeKeyEvent.getKeyCode() == hotkeyButtons[i]) {
                         holdKeys[i] = false;
                     }
                 }
@@ -85,8 +72,18 @@ public class Main {
         });
     }
 
-    public static void storeNewHotkey(List<Integer> hkButtons) {
-        hotkeyButtons = hkButtons;
-        holdKeys = new boolean[hotkeyButtons.size()];
+    private static void createStorage() throws IOException{
+        if (storageFile.exists()) {
+            storage = (Storage) YAPIONDeserializer.deserialize(YAPIONParser.parse(storageFile));
+        } else {
+            storage = new Storage();
+        }
     }
+
+    public static void setHotkeyButtons(int [] hotKey){
+        hotkeyButtons = hotKey;
+        holdKeys = new boolean[hotKey.length];
+        storage.save();
+    }
+
 }
