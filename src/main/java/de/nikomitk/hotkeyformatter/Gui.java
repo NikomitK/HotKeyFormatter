@@ -23,11 +23,9 @@ public class Gui extends JFrame implements NativeKeyListener {
 
     public Gui() {
 
-        // Visuals
         setLAF();
         setFrameOptions();
 
-        // JPanels
         JPanel everyThing = new JPanel(new GridLayout(2, 1));
         JPanel up = new JPanel(new GridLayout(1, 2));
         JPanel down = new JPanel(new GridLayout());
